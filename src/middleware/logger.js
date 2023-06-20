@@ -6,9 +6,11 @@ function logger(req, res, next) {
     userId: req.userId,
   };
 
-  Logger.child({ requestId: req.reqId, userId: req.userId }).log({
-    message: `Method: ${req.method}, URL: ${req.url}`,
+  Logger.log({
     level: "http",
+    requestId: req.reqId,
+    userId: req.userId,
+    message: `Method: ${req.method}, URL: ${req.url}`,
   });
 
   req.LogData = message;
