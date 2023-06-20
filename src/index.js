@@ -2,6 +2,7 @@ import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import logger from "./middleware/logger.js";
 import { Logger } from "./utils/Logger.js";
+import httpContext from "express-http-context";
 
 const app = express();
 app.use(express.json());
@@ -9,18 +10,18 @@ app.use(express.json());
 // In-memory array to store books
 let books = [];
 
-// attach a request ID with every request
-// in the http req context
+app.use(httpContext.middleware);
+
+// set reqId in http context
 app.use((req, res, next) => {
-  req.reqId = uuidv4();
+  httpContext.set("reqId", uuidv4());
   next();
 });
 
-// attach a user ID with every request
-// in the http req context
+// set userId in http context
 app.use((req, res, next) => {
   // will get the user ID from the JWT
-  req.userId = req.body.userId;
+  httpContext.set("userId", req.body.userId);
   next();
 });
 
@@ -29,8 +30,11 @@ app.use(logger);
 
 // Get all books
 app.get("/books", (req, res) => {
+  const userId = httpContext.get("userId");
+  const reqId = httpContext.get("reqId");
+
   Logger.debug(
-    `User: ${req.userId} - requested list of books, RequestId: ${req.reqId}`
+    `User: ${userId} - requested list of books, RequestId: ${reqId}`
   );
   res.json(books);
 });
@@ -39,11 +43,12 @@ app.get("/books", (req, res) => {
 app.get("/books/:id", (req, res) => {
   const bookId = parseInt(req.params.id);
   const book = books.find((b) => b.id === bookId);
+  const userId = httpContext.get("userId");
   if (book) {
-    Logger.debug(`User: ${req.userId} - requested book #${bookId}`);
+    Logger.debug(`User: ${userId} - requested book #${bookId}`);
     res.json(book);
   } else {
-    Logger.error(`User: ${req.userId} - book #${bookId} not found`);
+    Logger.error(`User: ${userId} - book #${bookId} not found`);
     res.status(404).json({ error: "Book not found" });
   }
 });
@@ -52,8 +57,9 @@ app.get("/books/:id", (req, res) => {
 app.post("/books", (req, res) => {
   const { title, author } = req.body;
   const newBook = { id: books.length + 1, title, author };
+  const userId = httpContext.get("userId");
   books.push(newBook);
-  Logger.debug(`User: ${req.userId} - created book #${newBook.id}`);
+  Logger.debug(`User: ${userId} - created book #${newBook.id}`);
   res.status(201).json(newBook);
 });
 
@@ -62,6 +68,7 @@ app.put("/books/:id", (req, res) => {
   const bookId = parseInt(req.params.id);
   const { title, author } = req.body;
   let updatedBook = false;
+
   books = books.map((book) => {
     if (book.id === bookId) {
       updatedBook = true;
@@ -69,11 +76,13 @@ app.put("/books/:id", (req, res) => {
     }
     return book;
   });
+
+  const userId = httpContext.get("userId");
   if (updatedBook) {
-    Logger.debug(`User: ${req.userId} - updated book #${bookId}`);
+    Logger.debug(`User: ${userId} - updated book #${bookId}`);
     res.json({ message: "Book updated successfully" });
   } else {
-    Logger.error(`User: ${req.userId} - book #${bookId} not found`);
+    Logger.error(`User: ${userId} - book #${bookId} not found`);
     res.status(404).json({ error: "Book not found" });
   }
 });
@@ -82,12 +91,15 @@ app.put("/books/:id", (req, res) => {
 app.delete("/books/:id", (req, res) => {
   const bookId = parseInt(req.params.id);
   const initialLength = books.length;
+  const userId = httpContext.get("userId");
+
   books = books.filter((book) => book.id !== bookId);
+
   if (books.length === initialLength) {
-    Logger.error(`User: ${req.userId} - book #${bookId} not found`);
+    Logger.error(`User: ${userId} - book #${bookId} not found`);
     res.status(404).json({ error: "Book not found" });
   } else {
-    Logger.debug(`User: ${req.userId} - deleted book #${bookId}`);
+    Logger.debug(`User: ${userId} - deleted book #${bookId}`);
     res.json({ message: "Book deleted successfully" });
   }
 });
